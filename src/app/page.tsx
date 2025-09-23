@@ -1,103 +1,126 @@
-import Image from "next/image";
+// src/app/page.tsx  (Server Component)
+import { createClient } from "@/lib/supabaseServer";
 
-export default function Home() {
+type Store = {
+  store_pk: number;
+  store_name: string;
+  street: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  phone_no: string | null;
+  hourly_price: number | null;
+  is_active: boolean;
+};
+
+export default async function Home() {
+  const supabase = await createClient();
+
+  // 필요한 컬럼만 선택 (여기에는 cover_url 없음)
+  const { data: stores = [], error } = await supabase
+    .from("store")
+    .select(`
+      store_pk,
+      store_name,
+      street,
+      city,
+      province,
+      postal_code,
+      country,
+      phone_no,
+      hourly_price,
+      is_active
+    `)
+    .eq("is_active", true)
+    .order("store_pk", { ascending: false })
+    .limit(12);
+
+  if (error) {
+    console.error("Supabase select error:", error);
+  }
+
+  const fmtAddr = (s: Store) =>
+    [s.street, s.city, s.province, s.postal_code].filter(Boolean).join(", ");
+
+  const fmtPrice = (p: number | null) =>
+    p != null
+      ? new Intl.NumberFormat("en-CA", {
+        style: "currency",
+        currency: "CAD",
+        maximumFractionDigits: 0,
+      }).format(p) + "/h"
+      : "—";
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div
+      className="min-h-screen px-8 sm:px-20 font-sans"
+      style={{ backgroundColor: "#8c9a79" }}
+    >
+      {/* 고정 헤더 */}
+      <header className="w-full fixed top-0 left-0 bg-[#8c9a79] z-50">
+        <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 px-8 py-6">
+          {/* 로고 */}
+          <svg viewBox="0 0 700 140" className="block h-12 w-auto" aria-label="Birdie Day">
+            <text
+              x="20"
+              y="70"
+              fontFamily="Anton, Impact, Arial Black, sans-serif"
+              fontSize="140"
+              fontStyle="italic"
+              fill="#e6dfcf"
+              stroke="#000"
+              strokeWidth="10"
+              paintOrder="stroke fill"
+              dominantBaseline="middle"
+            >
+              Birdie Day
+            </text>
+          </svg>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          {/* 메뉴 */}
+          <nav className="flex flex-wrap justify-center gap-4">
+            <a className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800" href="#home">
+              Home
+            </a>
+            <a className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800" href="#about">
+              About
+            </a>
+            <a className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800" href="#reservations">
+              Reservations
+            </a>
+            <a className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800" href="#contact">
+              Contact
+            </a>
+          </nav>
         </div>
+      </header>
+
+      {/* 본문 (헤더 높이만큼 패딩) */}
+      <main className="pt-28 mx-auto max-w-6xl">
+        <h1 className="text-2xl font-bold mb-6">Stores</h1>
+
+        {stores.length === 0 ? (
+          <p className="opacity-80">표시할 매장이 없습니다.</p>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stores.map((s) => (
+              <li key={s.store_pk} className="rounded-xl bg-black/10 p-4 backdrop-blur-sm">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-lg font-semibold">{s.store_name}</h3>
+                  <span className="text-sm">{fmtPrice(s.hourly_price)}</span>
+                </div>
+                <p className="text-sm opacity-80">{fmtAddr(s)}</p>
+                {s.phone_no && <p className="text-sm mt-1">☎ {s.phone_no}</p>}
+                {/* 상세 페이지 연결은 /stores/[store_pk] 라우트 만들고 아래 링크 활성화 */}
+                {/* <a href={`/stores/${s.store_pk}`} className="mt-3 inline-block rounded bg-black text-white px-3 py-1 hover:bg-gray-800">
+                  자세히 보기
+                </a> */}
+              </li>
+            ))}
+          </ul>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }

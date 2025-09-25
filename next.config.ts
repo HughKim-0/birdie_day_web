@@ -1,7 +1,15 @@
-import type { NextConfig } from "next";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-const nextConfig: NextConfig = {
-  /* config options here */
+module.exports = {
+  images: {
+    remotePatterns: SUPABASE_URL
+      ? [
+          {
+            protocol: new URL(SUPABASE_URL).protocol.replace(":", ""),
+            hostname: new URL(SUPABASE_URL).hostname,
+            pathname: "/storage/v1/object/public/**",
+          },
+        ]
+      : [],
+  },
 };
-
-export default nextConfig;

@@ -1,11 +1,9 @@
 // src/app/page.tsx (Server Component)
-import { createClient } from "@/lib/supabaseServer";
-import Image from "next/image";
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import BannerCarousel from "@/components/BannerCarousel";
-import StoreSearchBar from "@/components/StoreSearchBar";
 import StoreCardModal from "@/components/StoreCardModal";
+import StoreSearchBar from "@/components/StoreSearchBar";
+import { createClient } from "@/lib/supabaseServer";
+import { redirect } from "next/navigation";
 
 type Store = {
   store_pk: number;
@@ -34,9 +32,10 @@ type UserRow = {
   user_email: string | null;
   phone_no: string | null;
   is_owner: boolean | null;
-  user_uuid: string | null; // uuid
-  birth_day: string | null; // date
-  reg_date: string | null;  // timestamptz
+  user_uuid: string | null; 
+  birth_day: string | null; 
+  reg_date: string | null;   // e.g. "2025-09-25" or ISO string
+  reg_time: string | null;   // e.g. "12:34:56" or ISO string
 };
 
 function getImageUrl(picName: string) {
@@ -45,18 +44,16 @@ function getImageUrl(picName: string) {
 }
 
 function isNowInRange(start: string, end: string, now: Date): boolean {
-  const [sh, sm, ss] = start.split(":").map(Number);
-  const [eh, em, es] = end.split(":").map(Number);
-
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
   const startMins = sh * 60 + sm;
   const endMins = eh * 60 + em;
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
   if (startMins <= endMins) {
-    // 같은 날 범위
     return nowMins >= startMins && nowMins < endMins;
   } else {
-    //跨일 (예: 21:00 ~ 06:00)
+    // (예) 21:00 ~ 06:00
     return nowMins >= startMins || nowMins < endMins;
   }
 }
@@ -69,16 +66,12 @@ function getBannerUrl(fileName: string) {
 export default async function Home() {
   const supabase = await createClient();
 
+  // 메인 배너
   const { data: files, error: listError } = await supabase.storage
     .from("app.picture")
     .list("main_banner");
-
-  if (listError) {
-    console.error("Storage list error:", listError);
-  }
-
-  const bannerUrls =
-    files?.map((f) => getBannerUrl(f.name)).filter(Boolean) ?? [];
+  if (listError) console.error("Storage list error:", listError);
+  const bannerUrls = files?.map((f) => getBannerUrl(f.name)).filter(Boolean) ?? [];
 
   // 1) 현재 로그인 유저 (auth)
   const {
@@ -90,9 +83,10 @@ export default async function Home() {
   if (user) {
     const { data, error } = await supabase
       .from("user")
-      .select(
-        "user_pk, user_name, user_email, phone_no, is_owner, user_uuid, birth_day, reg_date"
-      )
+      .select(`
+        user_pk, user_name, user_email, phone_no,
+        is_owner, user_uuid, birth_day, reg_date, reg_time
+      `)
       .eq("user_uuid", user.id)
       .single<UserRow>();
 
@@ -103,22 +97,21 @@ export default async function Home() {
     }
   }
 
-
+  // 인사말
   const { data: greetings = [] } = await supabase
     .from("greeting")
     .select("seq, comment, start_time, end_time")
     .order("seq", { ascending: true });
 
-
   const now = new Date();
   let greetingComment: string | null = null;
-  for (const g of (greetings ?? [])) {
+  for (const g of greetings ?? []) {
     if (isNowInRange(g.start_time, g.end_time, now)) {
       greetingComment = g.comment;
       break;
     }
   }
-  if (!greetingComment) greetingComment = "Welcome!"; // fallback
+  if (!greetingComment) greetingComment = "Welcome!";
 
   // 3) 스토어 목록
   const { data: stores = [], error } = await supabase
@@ -130,19 +123,15 @@ export default async function Home() {
     .eq("is_active", true)
     .order("store_pk", { ascending: false })
     .limit(12);
-
   if (error) console.error("Supabase select error:", error);
-
-  const fmtAddr = (s: Store) =>
-    [s.street, s.city, s.province, s.postal_code].filter(Boolean).join(", ");
 
   const fmtPrice = (p: number | null) =>
     p != null
       ? new Intl.NumberFormat("en-CA", {
-        style: "currency",
-        currency: "CAD",
-        maximumFractionDigits: 0,
-      }).format(p) + "/h"
+          style: "currency",
+          currency: "CAD",
+          maximumFractionDigits: 0,
+        }).format(p) + "/h"
       : "—";
 
   const displayName =
@@ -184,45 +173,18 @@ export default async function Home() {
           {/* 메뉴 + 로그인/계정 */}
           <div className="flex items-center gap-6">
             <nav className="flex gap-6">
-              <a
-                className="text-white hover:underline underline-offset-4"
-                href="#account"
-              >
-                Account
-              </a>
-              <a
-                className="text-white hover:underline underline-offset-4"
-                href="#search"
-              >
-                Search
-              </a>
-              <a
-                className="text-white hover:underline underline-offset-4"
-                href="#posts"
-              >
-                Posts
-              </a>
-              <a
-                className="text-white hover:underline underline-offset-4"
-                href="#chat"
-              >
-                Chat
-              </a>
+              <a className="text-white hover:underline underline-offset-4" href="#account">Account</a>
+              <a className="text-white hover:underline underline-offset-4" href="#search">Search</a>
+              <a className="text-white hover:underline underline-offset-4" href="#posts">Posts</a>
+              <a className="text-white hover:underline underline-offset-4" href="#chat">Chat</a>
             </nav>
             <span className="text-white/50">|</span>
 
-
             {user ? (
               <div className="flex items-center gap-4">
-
-
-                {/* 인사/이름 */}
                 <span className="text-white">
                   {greetingComment} , <b>{displayName}</b> 님
                 </span>
-
-
-
                 {/* 로그아웃 (서버 액션) */}
                 <form action={signOutAction}>
                   <button
@@ -235,10 +197,7 @@ export default async function Home() {
               </div>
             ) : (
               <div className="flex gap-4">
-                <a
-                  href="/login"
-                  className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800"
-                >
+                <a href="/login" className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800">
                   Log in / Sign up
                 </a>
               </div>
@@ -249,7 +208,6 @@ export default async function Home() {
 
       {/* 본문 */}
       <main className="pt-25 mx-auto max-w-6xl">
-
         <BannerCarousel images={bannerUrls} />
 
         <div className="mt-3 mb-2">
@@ -263,10 +221,7 @@ export default async function Home() {
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {(stores ?? []).map((s) => {
-              const imgs = (s.picture ?? []).map((p) =>
-                getImageUrl(p.pic_name)
-              );
-              // 주소 두 줄로
+              const imgs = (s.picture ?? []).map((p) => getImageUrl(p.pic_name));
               const address1 = s.street ?? "";
               const address2 = [s.postal_code, s.province, s.country].filter(Boolean).join(", ");
 
@@ -280,6 +235,8 @@ export default async function Home() {
                     address2={address2}
                     hourly_price={s.hourly_price}
                     phone_no={s.phone_no}
+             
+                    me={me}
                   />
                 </li>
               );
@@ -295,6 +252,6 @@ export default async function Home() {
 export async function signOutAction() {
   "use server";
   const supabase = await createClient();
-  await supabase.auth.signOut(); // 세션 쿠키 정리
-  redirect("/");                 // 홈으로
+  await supabase.auth.signOut();
+  redirect("/");
 }
